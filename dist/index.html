@@ -50,6 +50,10 @@ main{flex:1;min-width:0;display:flex;flex-direction:column}
 .sbox{position:relative;z-index:1;display:flex;align-items:center;gap:10px;background:#fff;border-radius:14px;padding:6px 6px 6px 16px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
 .sbox svg{width:22px;height:22px;color:var(--ink3);flex:none}
 #q{flex:1;border:0;outline:0;font-size:17px;padding:10px 0;color:var(--ink);background:transparent;min-width:0}
+.voice{width:42px;height:42px;flex:none;border:0;border-radius:11px;background:#edf3ff;color:#245ca8;display:grid;place-items:center;touch-action:none;user-select:none;transition:.15s}
+.voice svg{width:21px;height:21px;color:currentColor}.voice:hover{background:#dfeaff}.voice.on{background:var(--bad);color:#fff;animation:vpulse 1s ease-in-out infinite}.voice:disabled{opacity:.45;cursor:not-allowed}
+@keyframes vpulse{50%{box-shadow:0 0 0 7px rgba(229,72,77,.18)}}
+.vstat{position:relative;z-index:1;min-height:21px;margin:7px 2px -2px;color:#b9c7df;font-size:12px}.vstat.on{color:#fff}.vstat.bad{color:#ffb9bc}
 .kbd{font:11px Consolas,monospace;color:var(--ink3);border:1px solid var(--line);border-radius:5px;padding:1px 6px}
 .chips{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;min-height:26px}
 .chip{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);color:#dfe8f8;border-radius:999px;padding:3px 11px;font-size:12px}
@@ -193,7 +197,8 @@ td img{width:120px;height:80px;object-fit:contain;background:#fff;border:1px sol
   <section class="view" id="v-search">
    <div class="hero"><h1 data-t="h1"></h1><p data-t="h1s"></p>
     <div class="sbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-     <input id="q" type="search" autocomplete="off" spellcheck="false"><span class="kbd">/</span></div>
+     <input id="q" type="search" autocomplete="off" spellcheck="false"><button class="voice" id="voice" type="button" aria-label="Giữ để nói" title="Giữ để nói"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></svg></button><span class="kbd">/</span></div>
+    <div class="vstat" id="vstat" aria-live="polite"></div>
     <div class="chips" id="chips"></div><div class="sugg" id="sugg"></div></div>
    <div class="bar">
     <select id="fc"></select>
@@ -552,6 +557,45 @@ function splash(){const sp=$("splash");let done=false,si=-1,typed="",target="";c
  $("spSkip").onclick=finish;sp.addEventListener("dblclick",finish);addEventListener("keydown",e=>{if(e.key==="Escape"||e.key==="Enter")finish()},{once:true})}
 
 /* ================= events ================= */
+let VREC=null,VFINAL="";
+function voiceStatus(s,kind=""){const e=$("vstat");if(!e)return;e.textContent=s;e.className="vstat "+kind}
+function voiceSpeak(s){if(!("speechSynthesis" in window))return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(s);u.lang=LG==="ja"?"ja-JP":"vi-VN";u.rate=1;speechSynthesis.speak(u)}
+const VOICE_CO={toyota:"トヨタ",fujimi:"フジミ",phujimi:"フジミ",maeda:"前田",techno:"テクノ",kawagishi:"川岸",daikyo:"大協",toda:"戸田",haseko:"長谷工",taisei:"大成"};
+function voiceCompany(raw){
+ const v=NV(raw),code=(v.match(/\b(?:cong ty|ma)\s+([a-z])\b/)||[])[1];
+ if(code){const c=CO.find(x=>String(x.code).toLowerCase()===code);if(c)return c}
+ const a=Object.keys(VOICE_CO).find(x=>v.includes(x));if(a){const n=N(VOICE_CO[a]);return CO.find(c=>N(c.full).includes(n)||N(c.name).includes(n))}
+ return CO.find(c=>[c.full,c.name,...(c.alias||[])].some(x=>{const n=NV(x);return n.length>1&&v.includes(n)}))||null
+}
+function voiceApply(raw){
+ let q=String(raw||"").trim();if(!q)return;
+ const v=NV(q),y=(v.match(/\b((?:19|20)\d{2})\b/)||[])[1],co=voiceCompany(q);
+ if(/(?:xoa bo loc|bo loc|reset|リセット)/.test(v)){S.co="";S.year="";S.kind=""}
+ if(y)S.year=y;
+ if(/(?:lap rap|組立|kumitate)/.test(v))S.kind="1";else if(/(?:linh kien|bo phan|部品)/.test(v))S.kind="0";else if(/(?:tat ca|全て|すべて)/.test(v))S.kind="";
+ if(co)S.co=String(co.i);
+ q=q.replace(/\b(?:hãy|hay|tìm kiếm|tìm|tim|kiếm|kiem|cho tôi|cho toi|lọc|loc|xóa bộ lọc|xoa bo loc|bỏ lọc|bo loc|reset|công ty|cong ty|mã|ma|năm|nam|bản vẽ|ban ve|lắp ráp|lap rap|linh kiện|linh kien|bộ phận|bo phan|tất cả|tat ca|của|cua|ở|thuộc|thuoc|hãng|hang)\b/giu," ").replace(/\b(?:19|20)\d{2}\b/g," ");
+ Object.keys(VOICE_CO).forEach(x=>{q=q.replace(new RegExp(`\\b${x}\\b`,"ig")," ")});
+ if(co)[co.full,co.name,...(co.alias||[])].filter(Boolean).forEach(x=>{q=q.replaceAll(x," ")});
+ if(co&&/\b(?:cong ty|ma)\s+[a-z]\b/.test(v))q=q.replace(new RegExp(`\\b${co.code}\\b`,"i")," ");
+ q=q.replace(/\s+/g," ").trim();S.q=q;S.sim=null;$("q").value=q;texts();run();
+ const msg=LG==="ja"?`${fmt(S.res.length)}件見つかりました`:`Đã tìm thấy ${fmt(S.res.length)} kết quả`;
+ voiceStatus(`“${raw}” · ${msg}`,"on");voiceSpeak(msg)
+}
+function initVoice(){
+ const b=$("voice"),R=window.SpeechRecognition||window.webkitSpeechRecognition;
+ if(!b)return;if(!R){b.disabled=true;voiceStatus(LG==="ja"?"このブラウザは音声入力に対応していません":"Trình duyệt này chưa hỗ trợ nhập giọng nói","bad");return}
+ const start=e=>{if(e){e.preventDefault();b.setPointerCapture&&e.pointerId!==undefined&&b.setPointerCapture(e.pointerId)}if(VREC)return;window.speechSynthesis?.cancel();
+  const r=new R;VREC=r;VFINAL="";r.lang=LG==="ja"?"ja-JP":"vi-VN";r.interimResults=true;r.continuous=false;r.maxAlternatives=1;
+  r.onstart=()=>{b.classList.add("on");voiceStatus(LG==="ja"?"話してください… 離すと検索します":"Đang nghe… thả tay để tìm","on")};
+  r.onresult=e=>{let live="";for(let i=e.resultIndex;i<e.results.length;i++){const s=e.results[i][0].transcript;if(e.results[i].isFinal)VFINAL+=s;else live+=s}voiceStatus(VFINAL||live||"…","on")};
+  r.onerror=e=>{const denied=e.error==="not-allowed"||e.error==="service-not-allowed";voiceStatus(denied?(LG==="ja"?"マイクの使用を許可してください":"Hãy cấp quyền sử dụng micro"):(LG==="ja"?"音声を認識できませんでした":"Không nhận được giọng nói"),"bad")};
+  r.onend=()=>{b.classList.remove("on");VREC=null;if(VFINAL)voiceApply(VFINAL)};
+  try{r.start()}catch(x){VREC=null;b.classList.remove("on")}};
+ const stop=e=>{if(e)e.preventDefault();if(VREC)try{VREC.stop()}catch(x){}};
+ b.addEventListener("pointerdown",start);b.addEventListener("pointerup",stop);b.addEventListener("pointercancel",stop);b.addEventListener("contextmenu",e=>e.preventDefault());
+ b.addEventListener("keydown",e=>{if((e.key===" "||e.key==="Enter")&&!e.repeat)start(e)});b.addEventListener("keyup",e=>{if(e.key===" "||e.key==="Enter")stop(e)})
+}
 function bind(){
  let tm;$("q").addEventListener("input",e=>{clearTimeout(tm);tm=setTimeout(()=>{S.q=e.target.value;S.sim=null;run()},160)});
  $("fc").onchange=e=>{S.co=e.target.value;run()};$("fy").onchange=e=>{S.year=e.target.value;run()};$("fs").onchange=e=>{S.sort=e.target.value;run()};
@@ -586,7 +630,7 @@ function bind(){
 (async function boot(){
  try{await loadData();prep()}catch(err){document.body.innerHTML=`<div style="padding:40px;font:15px sans-serif">Không đọc được dữ liệu / データを読み込めません: ${esc(err)}<br>Chrome / Edge mới nhất được khuyến nghị.</div>`;return}
  GAL=makeGalaxy($("gcv"),{intro:false});
- bind();texts();go("search");run();
+ bind();initVoice();texts();go("search");run();
  try{splash()}catch(e){const s=$("splash");if(s)s.remove()}
  detectImg();
 })();

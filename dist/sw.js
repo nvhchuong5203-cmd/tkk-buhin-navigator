@@ -1,4 +1,4 @@
-const CACHE="tkk-buhin-v1";
+const CACHE="tkk-buhin-v2";
 const FILES=["./","./index.html","./manifest.webmanifest","./icon.svg"];
 
 self.addEventListener("install",event=>{
